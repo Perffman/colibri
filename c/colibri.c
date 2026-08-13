@@ -1848,9 +1848,12 @@ static void model_init(Model *m, const char *snap, int cap, int ebits, int dbits
     m->elast_dc=calloc(NR,sizeof(uint32_t*)); m->elast_pre=calloc(NR,sizeof(uint32_t*));
     m->kv=calloc(1,sizeof(KVState));
     m->kv_start=m->kv->kv_start=calloc(NR,sizeof(int));
-    for(int i=0;i<c->n_layers;i++){
+    /* PARALLEL layer loading: each thread gets its own name buffer.
+     * pread with distinct offsets is thread-safe; st_find hash lookups are read-only. */
+    #pragma omp parallel for schedule(dynamic,4) shared(m,c,cap,H,D,dbits)
+    for(int i=0;i<c->n_layers;i++){ char tnm[256];
+      #define P(s) (snprintf(tnm,sizeof(tnm),"model.layers.%d." s,i),tnm)
         Layer *l=&m->L[i];
-        #define P(s) (snprintf(nm,sizeof(nm),"model.layers.%d." s,i),nm)
         l->in_ln=ld(m,P("input_layernorm.weight"));
         l->post_ln=ld(m,P("post_attention_layernorm.weight"));
         l->q_a   = qt_load(m,P("self_attn.q_a_proj.weight"), c->q_lora, D, dbits);
@@ -1892,7 +1895,7 @@ static void model_init(Model *m, const char *snap, int cap, int ebits, int dbits
             m->elast_dc[i]=calloc(c->n_experts,sizeof(uint32_t));
             m->elast_pre[i]=calloc(c->n_experts,sizeof(uint32_t));
         }
-        #undef P
+      #undef P
     }
     kvb_fmt_gate_notice(m);                       /* once per load, after all layer kv_b resolved */
     /* testa MTP (layer n_layers): presente solo se convertita con --mtp */

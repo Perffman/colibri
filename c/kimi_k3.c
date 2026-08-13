@@ -576,7 +576,11 @@ static void model_init(Model *m, const char *snap, int n_layers_env){
     m->cwv=calloc(c->n_layers,sizeof(float*));
     char nm[512];
     #define NM(...) (snprintf(nm,sizeof(nm),__VA_ARGS__),nm)
-    for(int i=0;i<c->n_layers;i++){
+    /* PARALLEL layer loading: each thread gets its own name buffer.
+     * pread with distinct offsets is thread-safe; st_find hash lookups are read-only. */
+    #pragma omp parallel for schedule(dynamic,4) shared(m,c)
+    for(int i=0;i<c->n_layers;i++){ char tnm[512];
+      #define NM(fmt,...) (snprintf(tnm,sizeof(tnm),fmt,__VA_ARGS__),tnm)
         Layer *l=&m->L[i];
         l->kda=c->is_kda[i];
         l->sparse=(i>=c->first_dense);
@@ -645,7 +649,8 @@ static void model_init(Model *m, const char *snap, int n_layers_env){
             w_load(m,&l->d_up,NM("model.layers.%d.mlp.up_proj.weight",i),c->dense_inter,c->hidden,bits);
             w_load(m,&l->d_down,NM("model.layers.%d.mlp.down_proj.weight",i),c->hidden,c->dense_inter,bits);
         }
-        if(i%8==0) fprintf(stderr,"[K3] loaded layer %d/%d (%.1fs, RSS %.1f GB)\n",i+1,c->n_layers,now_s()-t0,rss_gb());
+        /* progress logging suppressed in parallel region — printed after barrier */
+      #undef NM
     }
     snprintf(nm,sizeof(nm),"%smodel.norm.weight",m->pfx);
     m->has_head = st_has(&m->S,nm);
