@@ -1833,8 +1833,7 @@ static void serve_one(Model *m, Tok *T, ServeReq *q){
         np+=n; chat=1;
     } else {
         np+=tok_encode(T,q->payload,q->plen,ids+np,cap-np);
-    }
-    int max_ctx=getenv("K3_MAXT")?atoi(getenv("K3_MAXT")):8192;
+    int max_ctx=getenv("K3_MAXT")?atoi(getenv("K3_MAXT")):np+q->max_tok;
     if(np<1||np+q->max_tok>max_ctx){
         printf("ERROR %s CONTEXT_EXCEEDED prompt_tokens=%d requested=%d capacity=%d\n",
                q->id,np,q->max_tok,max_ctx);
