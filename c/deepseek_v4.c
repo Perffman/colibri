@@ -8740,7 +8740,7 @@ static void v4_serve_one(ColiV4Engine *engine, ColiV4Session *session,
     int prompt_count = tok_encode(&session->tokenizer, request->prompt,
                                   request->prompt_bytes, session->prompt_ids,
                                   session->max_prompt_tokens + 16);
-    int context = engine->runtime.context_tokens;
+    int context = getenv("CTX") ? atoi(getenv("CTX")) : prompt_count + request->max_tokens;
     if (prompt_count < 1 || prompt_count > session->max_prompt_tokens ||
         prompt_count + request->max_tokens > context) {
         char message[256];
